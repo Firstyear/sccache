@@ -27,6 +27,9 @@ use crate::compiler::PreprocessorCacheEntry;
 use crate::config::{Config, PreprocessorCacheModeConfig, WriteErrorPolicy};
 use crate::errors::*;
 
+#[cfg(feature = "concurrent-cache")]
+use crate::cache::conccache::ConcurrentDiskCache;
+
 /// Increment an atomic stats counter, handling the Option check.
 /// Usage: `inc_stat!(optional_stats, field_name, value)`
 macro_rules! inc_stat {
@@ -400,7 +403,6 @@ impl MultiLevelStorage {
             let level_name = level_name.trim();
 
             if level_name.eq_ignore_ascii_case("disk") {
-                // Build disk cache from config
                 let disk_config = config.cache_configs.disk.as_ref().ok_or_else(|| {
                     anyhow!("Disk cache specified in levels but not configured (set SCCACHE_DIR)")
                 })?;
@@ -410,16 +412,32 @@ impl MultiLevelStorage {
                     "Adding disk cache level with dir {:?}, size {}",
                     disk_config.dir, disk_config.size
                 );
-                let disk_storage: Arc<dyn Storage> = Arc::new(DiskCache::new(
-                    &disk_config.dir,
-                    disk_config.size,
-                    pool,
-                    preprocessor_cache_mode_config,
-                    rw_mode,
-                    config.basedirs.clone(),
-                ));
-                storages.push(disk_storage);
-                trace!("Added disk cache level");
+
+                let disk_storage: Arc<dyn Storage> = if cfg!(feature = "concurrent-cache") {
+                    ConcurrentDiskCache::new(
+                        &disk_config.dir,
+                        disk_config.size,
+                        false,
+                        pool,
+                        preprocessor_cache_mode_config,
+                        rw_mode,
+                        config.basedirs.clone(),
+                    )
+                    .map(Arc::new)
+                    .expect("Failed to setup cache!")
+                } else {
+                    // Build disk cache from config
+                    Arc::new(DiskCache::new(
+                        &disk_config.dir,
+                        disk_config.size,
+                        pool,
+                        preprocessor_cache_mode_config,
+                        rw_mode,
+                        config.basedirs.clone(),
+                    ))
+                };
+                    storages.push(disk_storage);
+                    trace!("Added disk cache level");
             } else {
                 // Build remote cache - get the appropriate CacheType
                 let cache_type = config.cache_configs.cache_type_by_name(level_name)?;

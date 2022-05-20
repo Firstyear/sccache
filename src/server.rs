@@ -519,7 +519,7 @@ pub fn start_server(config: &Config, addr: &crate::net::SocketAddr) -> Result<()
 
     let notify = env::var_os("SCCACHE_STARTUP_NOTIFY");
 
-    let raw_storage = match storage_from_config(config, &pool) {
+    let mut raw_storage = match storage_from_config(config, &pool) {
         Ok(storage) => storage,
         Err(err) => {
             error!("storage init failed for: {err:?}");
