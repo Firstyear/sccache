@@ -221,6 +221,15 @@ pub struct S3CacheConfig {
     pub use_ssl: Option<bool>,
 }
 
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConcurrentDiskCacheConfig {
+    pub dir: PathBuf,
+    // TODO: use deserialize_with to allow human-readable sizes in toml
+    pub size: u64,
+    pub durable_fs: bool
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum CacheType {
     Azure(AzureCacheConfig),
@@ -229,6 +238,7 @@ pub enum CacheType {
     Memcached(MemcachedCacheConfig),
     Redis(RedisCacheConfig),
     S3(S3CacheConfig),
+    ConcurrentDisk(ConcurrentDiskCacheConfig),
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -241,6 +251,7 @@ pub struct CacheConfigs {
     pub memcached: Option<MemcachedCacheConfig>,
     pub redis: Option<RedisCacheConfig>,
     pub s3: Option<S3CacheConfig>,
+    pub concdisk: Option<ConcurrentDiskCacheConfig>,
 }
 
 impl CacheConfigs {
@@ -255,6 +266,7 @@ impl CacheConfigs {
             memcached,
             redis,
             s3,
+            concdisk,
         } = self;
 
         let caches = s3
@@ -265,6 +277,7 @@ impl CacheConfigs {
             .chain(gcs.map(CacheType::GCS))
             .chain(gha.map(CacheType::GHA))
             .chain(azure.map(CacheType::Azure))
+            .chain(concdisk.map(CacheType::ConcurrentDisk))
             .collect();
         let fallback = disk.unwrap_or_default();
 
@@ -281,6 +294,7 @@ impl CacheConfigs {
             memcached,
             redis,
             s3,
+            concdisk,
         } = other;
 
         if azure.is_some() {
@@ -303,6 +317,9 @@ impl CacheConfigs {
         }
         if s3.is_some() {
             self.s3 = s3
+        }
+        if concdisk.is_some() {
+            self.concdisk = concdisk
         }
     }
 }
@@ -628,6 +645,25 @@ fn config_from_env() -> Result<EnvConfig> {
         None
     };
 
+    let concdisk_dir = env::var_os("SCCACHE_CONC_DIR").map(PathBuf::from);
+    let concdisk_sz = env::var("SCCACHE_CONC_CACHE_SIZE")
+        .ok()
+        .and_then(|v| parse_size(&v));
+
+    let concdisk_durable_fs = env::var("SCCACHE_CONC_DURABLE_FS")
+        .ok()
+        .and_then(|v| bool::from_str(&v).ok());
+
+    let concdisk = if concdisk_dir.is_some() || concdisk_sz.is_some() {
+        Some(ConcurrentDiskCacheConfig {
+            dir: concdisk_dir.unwrap_or_else(default_disk_cache_dir),
+            size: concdisk_sz.unwrap_or_else(default_disk_cache_size),
+            durable_fs: concdisk_durable_fs.unwrap_or(false),
+        })
+    } else {
+        None
+    };
+
     let cache = CacheConfigs {
         azure,
         disk,
@@ -636,6 +672,7 @@ fn config_from_env() -> Result<EnvConfig> {
         memcached,
         redis,
         s3,
+        concdisk
     };
 
     Ok(EnvConfig { cache })
@@ -1102,6 +1139,11 @@ endpoint = "s3-us-east-1.amazonaws.com"
 use_ssl = true
 key_prefix = "s3prefix"
 no_credentials = true
+
+[cache.concdisk]
+dir = "/tmp/.cache/sccache_concurrent"
+size = 7516192768 # 7 GiBytes
+durable_fs = false
 "#;
 
     let file_config: FileConfig = toml::from_str(CONFIG_STR).expect("Is valid toml.");
@@ -1141,6 +1183,11 @@ no_credentials = true
                     use_ssl: Some(true),
                     key_prefix: "s3prefix".into(),
                     no_credentials: true,
+                }),
+                concdisk: Some(ConcurrentDiskCacheConfig {
+                    dir: PathBuf::from("/tmp/.cache/sccache_concurrent"),
+                    size: 7 * 1024 * 1024 * 1024,
+                    durable_fs: false
                 }),
             },
             dist: DistConfig {
