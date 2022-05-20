@@ -33,4 +33,7 @@ pub mod s3;
 #[cfg(feature = "webdav")]
 pub mod webdav;
 
+#[cfg(feature = "concurrent-cache")]
+pub mod conccache;
+
 pub use crate::cache::cache::*;
