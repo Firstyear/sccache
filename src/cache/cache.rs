@@ -25,6 +25,8 @@ use crate::cache::memcached::MemcachedCache;
 use crate::cache::redis::RedisCache;
 #[cfg(feature = "s3")]
 use crate::cache::s3::S3Cache;
+#[cfg(feature = "concurrent-cache")]
+use crate::cache::conccache::ConcurrentDiskCache;
 use crate::config::Config;
 #[cfg(any(
     feature = "azure",
@@ -545,6 +547,24 @@ pub fn storage_from_config(
                 .map_err(|err| anyhow!("create s3 cache failed: {err:?}"))?;
 
                 return Ok(Arc::new(storage));
+            }
+            CacheType::ConcurrentDisk(config::ConcurrentDiskCacheConfig {
+                ref dir, ref size, ref durable_fs
+            }) => {
+                debug!("Trying ConcurrentDiskCache({:?}, {}, {})", dir, size, durable_fs);
+                #[cfg(feature = "concurrent-cache")]
+                match ConcurrentDiskCache::new(
+                    dir,
+                    *size,
+                    *durable_fs,
+                    pool
+                ) {
+                    Ok(s) => {
+                        trace!("Using ConcurrentDiskCache");
+                        return Arc::new(s);
+                    }
+                    Err(e) => warn!("Failed to create ConcurrentDiskCache: {:?}", e),
+                }
             }
             #[allow(unreachable_patterns)]
             _ => bail!("cache type is not enabled"),
