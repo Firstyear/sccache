@@ -34,7 +34,8 @@ use crate::config::Config;
     feature = "gha",
     feature = "memcached",
     feature = "redis",
-    feature = "s3"
+    feature = "s3",
+    feature = "concurrent-cache"
 ))]
 use crate::config::{self, CacheType};
 use std::fmt;
@@ -561,7 +562,7 @@ pub fn storage_from_config(
                 ) {
                     Ok(s) => {
                         trace!("Using ConcurrentDiskCache");
-                        return Arc::new(s);
+                        return Ok(Arc::new(s));
                     }
                     Err(e) => warn!("Failed to create ConcurrentDiskCache: {:?}", e),
                 }
@@ -573,7 +574,12 @@ pub fn storage_from_config(
 
     let (dir, size) = (&config.fallback_cache.dir, config.fallback_cache.size);
     debug!("Init disk cache with dir {:?}, size {}", dir, size);
-    Ok(Arc::new(DiskCache::new(dir, size, pool)))
+
+    #[cfg(feature = "concurrent-cache")]
+    let cache = Arc::new(ConcurrentDiskCache::new(&dir, size, false, pool).expect("Failed to setup cache!"));
+    #[cfg(not(feature = "concurrent-cache"))]
+    let cache = Arc::new(DiskCache::new(&dir, size, pool));
+    Ok(cache)
 }
 
 #[cfg(test)]
