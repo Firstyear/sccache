@@ -243,6 +243,15 @@ pub struct S3CacheConfig {
     pub use_ssl: Option<bool>,
 }
 
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConcurrentDiskCacheConfig {
+    pub dir: PathBuf,
+    // TODO: use deserialize_with to allow human-readable sizes in toml
+    pub size: u64,
+    pub durable_fs: bool,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum CacheType {
     Azure(AzureCacheConfig),
@@ -252,6 +261,7 @@ pub enum CacheType {
     Redis(RedisCacheConfig),
     S3(S3CacheConfig),
     Webdav(WebdavCacheConfig),
+    ConcurrentDisk(ConcurrentDiskCacheConfig),
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -265,6 +275,7 @@ pub struct CacheConfigs {
     pub redis: Option<RedisCacheConfig>,
     pub s3: Option<S3CacheConfig>,
     pub webdav: Option<WebdavCacheConfig>,
+    pub concdisk: Option<ConcurrentDiskCacheConfig>,
 }
 
 impl CacheConfigs {
@@ -280,10 +291,12 @@ impl CacheConfigs {
             redis,
             s3,
             webdav,
+            concdisk,
         } = self;
 
         let cache_type = s3
             .map(CacheType::S3)
+            .or_else(|| concdisk.map(CacheType::ConcurrentDisk))
             .or_else(|| redis.map(CacheType::Redis))
             .or_else(|| memcached.map(CacheType::Memcached))
             .or_else(|| gcs.map(CacheType::GCS))
@@ -307,6 +320,7 @@ impl CacheConfigs {
             redis,
             s3,
             webdav,
+            concdisk,
         } = other;
 
         if azure.is_some() {
@@ -332,6 +346,9 @@ impl CacheConfigs {
         }
         if webdav.is_some() {
             self.webdav = webdav
+        }
+        if concdisk.is_some() {
+            self.concdisk = concdisk
         }
     }
 }
@@ -686,6 +703,31 @@ fn config_from_env() -> Result<EnvConfig> {
         None
     };
 
+    /*
+    let concdisk_dir = env::var_os("SCCACHE_CONC_DIR").map(PathBuf::from);
+    let concdisk_sz = env::var("SCCACHE_CONC_CACHE_SIZE")
+        .ok()
+        .and_then(|v| parse_size(&v));
+    */
+    let concdisk_dir = env::var_os("SCCACHE_DIR").map(PathBuf::from);
+    let concdisk_sz = env::var("SCCACHE_CACHE_SIZE")
+        .ok()
+        .and_then(|v| parse_size(&v));
+
+    let concdisk_durable_fs = env::var("SCCACHE_CONC_DURABLE_FS")
+        .ok()
+        .and_then(|v| bool::from_str(&v).ok());
+
+    let concdisk = if concdisk_dir.is_some() || concdisk_sz.is_some() {
+        Some(ConcurrentDiskCacheConfig {
+            dir: concdisk_dir.unwrap_or_else(default_disk_cache_dir),
+            size: concdisk_sz.unwrap_or_else(default_disk_cache_size),
+            durable_fs: concdisk_durable_fs.unwrap_or(false),
+        })
+    } else {
+        None
+    };
+
     let cache = CacheConfigs {
         azure,
         disk,
@@ -695,6 +737,7 @@ fn config_from_env() -> Result<EnvConfig> {
         redis,
         s3,
         webdav,
+        concdisk,
     };
 
     Ok(EnvConfig { cache })
@@ -1165,6 +1208,11 @@ no_credentials = true
 [cache.webdav]
 endpoint = "http://127.0.0.1:8080"
 key_prefix = "webdavprefix"
+
+[cache.concdisk]
+dir = "/tmp/.cache/sccache_concurrent"
+size = 7516192768 # 7 GiBytes
+durable_fs = false
 "#;
 
     let file_config: FileConfig = toml::from_str(CONFIG_STR).expect("Is valid toml.");
@@ -1207,7 +1255,12 @@ key_prefix = "webdavprefix"
                 webdav: Some(WebdavCacheConfig {
                     endpoint: "http://127.0.0.1:8080".to_string(),
                     key_prefix: "webdavprefix".into(),
-                })
+                }),
+                concdisk: Some(ConcurrentDiskCacheConfig {
+                    dir: PathBuf::from("/tmp/.cache/sccache_concurrent"),
+                    size: 7 * 1024 * 1024 * 1024,
+                    durable_fs: false
+                }),
             },
             dist: DistConfig {
                 auth: DistAuth::Token {

@@ -14,6 +14,8 @@
 
 #[cfg(feature = "azure")]
 use crate::cache::azure::AzureBlobCache;
+#[cfg(feature = "concurrent-cache")]
+use crate::cache::conccache::ConcurrentDiskCache;
 use crate::cache::disk::DiskCache;
 #[cfg(feature = "gcs")]
 use crate::cache::gcs::{GCSCache, RWMode};
@@ -35,7 +37,8 @@ use crate::config::Config;
     feature = "memcached",
     feature = "redis",
     feature = "s3",
-    feature = "webdav"
+    feature = "webdav",
+    feature = "concurrent-cache"
 ))]
 use crate::config::{self, CacheType};
 use fs_err as fs;
@@ -556,6 +559,24 @@ pub fn storage_from_config(
                     .map_err(|err| anyhow!("create webdav cache failed: {err:?}"))?;
                 return Ok(Arc::new(storage));
             }
+            CacheType::ConcurrentDisk(config::ConcurrentDiskCacheConfig {
+                ref dir,
+                ref size,
+                ref durable_fs,
+            }) => {
+                debug!(
+                    "Trying ConcurrentDiskCache({:?}, {}, {})",
+                    dir, size, durable_fs
+                );
+                #[cfg(feature = "concurrent-cache")]
+                match ConcurrentDiskCache::new(dir, *size, *durable_fs, pool) {
+                    Ok(s) => {
+                        trace!("Using ConcurrentDiskCache");
+                        return Ok(Arc::new(s));
+                    }
+                    Err(e) => warn!("Failed to create ConcurrentDiskCache: {:?}", e),
+                }
+            }
             #[allow(unreachable_patterns)]
             _ => bail!("cache type is not enabled"),
         }
@@ -563,7 +584,14 @@ pub fn storage_from_config(
 
     let (dir, size) = (&config.fallback_cache.dir, config.fallback_cache.size);
     debug!("Init disk cache with dir {:?}, size {}", dir, size);
-    Ok(Arc::new(DiskCache::new(dir, size, pool)))
+
+    #[cfg(feature = "concurrent-cache")]
+    let cache = Arc::new(
+        ConcurrentDiskCache::new(&dir, size, false, pool).expect("Failed to setup cache!"),
+    );
+    #[cfg(not(feature = "concurrent-cache"))]
+    let cache = Arc::new(DiskCache::new(&dir, size, pool));
+    Ok(cache)
 }
 
 #[cfg(test)]
