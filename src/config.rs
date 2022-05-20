@@ -645,8 +645,14 @@ fn config_from_env() -> Result<EnvConfig> {
         None
     };
 
+    /*
     let concdisk_dir = env::var_os("SCCACHE_CONC_DIR").map(PathBuf::from);
     let concdisk_sz = env::var("SCCACHE_CONC_CACHE_SIZE")
+        .ok()
+        .and_then(|v| parse_size(&v));
+    */
+    let concdisk_dir = env::var_os("SCCACHE_DIR").map(PathBuf::from);
+    let concdisk_sz = env::var("SCCACHE_CACHE_SIZE")
         .ok()
         .and_then(|v| parse_size(&v));
 
