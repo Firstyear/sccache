@@ -43,4 +43,7 @@ pub mod webdav;
 ))]
 pub(crate) mod http_client;
 
+#[cfg(feature = "concurrent-cache")]
+pub mod conccache;
+
 pub use crate::cache::cache::*;
