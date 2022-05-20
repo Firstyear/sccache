@@ -15,8 +15,11 @@
 use super::cache_io::*;
 #[cfg(feature = "azure")]
 use crate::cache::azure::AzureBlobCache;
+#[cfg(feature = "concurrent-cache")]
+use crate::cache::conccache::ConcurrentDiskCache;
 #[cfg(feature = "cos")]
 use crate::cache::cos::COSCache;
+#[cfg(not(feature = "concurrent-cache"))]
 use crate::cache::disk::DiskCache;
 #[cfg(feature = "gcs")]
 use crate::cache::gcs::GCSCache;
@@ -40,6 +43,7 @@ use crate::cache::s3::S3Cache;
     feature = "s3",
     feature = "webdav",
     feature = "oss",
+    feature = "concurrent-cache",
     feature = "cos"
 ))]
 use crate::cache::utils::normalize_key;
@@ -603,14 +607,30 @@ pub fn storage_from_config(
     let preprocessor_cache_mode_config = config.fallback_cache.preprocessor_cache_mode;
     let rw_mode = config.fallback_cache.rw_mode.into();
     debug!("Init disk cache with dir {:?}, size {}", dir, size);
-    Ok(Arc::new(DiskCache::new(
+
+    #[cfg(feature = "concurrent-cache")]
+    let cache = Arc::new(
+        ConcurrentDiskCache::new(
+            &dir,
+            size,
+            false,
+            pool,
+            preprocessor_cache_mode_config,
+            rw_mode,
+            config.basedirs.clone(),
+        )
+        .expect("Failed to setup cache!"),
+    );
+    #[cfg(not(feature = "concurrent-cache"))]
+    let cache = Arc::new(DiskCache::new(
         dir,
         size,
         pool,
         preprocessor_cache_mode_config,
         rw_mode,
         config.basedirs.clone(),
-    )))
+    ));
+    Ok(cache)
 }
 
 #[cfg(test)]
