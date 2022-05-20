@@ -473,7 +473,7 @@ pub struct COSCacheConfig {
     pub endpoint: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum CacheType {
     Azure(AzureCacheConfig),
     GCS(GCSCacheConfig),
@@ -636,6 +636,7 @@ impl CacheConfigs {
         if oss.is_some() {
             self.oss = oss;
         }
+
         if cos.is_some() {
             self.cos = cos;
         }
@@ -2287,6 +2288,11 @@ endpoint = "oss-us-east-1.aliyuncs.com"
 key_prefix = "ossprefix"
 no_credentials = true
 
+[cache.concdisk]
+dir = "/tmp/.cache/sccache_concurrent"
+size = 7516192768 # 7 GiBytes
+durable_fs = false
+
 [cache.cos]
 bucket = "name"
 endpoint = "cos.na-siliconvalley.myqcloud.com"
@@ -2356,6 +2362,11 @@ key_prefix = "cosprefix"
                     endpoint: Some("oss-us-east-1.aliyuncs.com".to_owned()),
                     key_prefix: "ossprefix".into(),
                     no_credentials: true,
+                }),
+                concdisk: Some(ConcurrentDiskCacheConfig {
+                    dir: PathBuf::from("/tmp/.cache/sccache_concurrent"),
+                    size: 7 * 1024 * 1024 * 1024,
+                    durable_fs: false
                 }),
                 cos: Some(COSCacheConfig {
                     bucket: "name".to_owned(),
