@@ -82,6 +82,10 @@ which = { version = "4", default-features = false }
 zip = { version = "0.5", default-features = false }
 zstd = "0.10"
 
+# concurrent cache
+# arc-disk-cache = { version = "0.1", optional = true }
+arc-disk-cache = { git = "https://github.com/Firstyear/opensuse-proxy-cache.git", optional = true }
+
 # dist-server only
 crossbeam-utils = { version = "0.8", optional = true }
 libmount = { version = "0.1.10", optional = true }
@@ -118,7 +122,8 @@ features = [
 
 [features]
 default = ["all"]
-all = ["dist-client", "redis", "s3", "memcached", "gcs", "azure"]
+all = ["dist-client", "redis", "s3", "memcached", "gcs", "azure", "concurrent-cache"]
+concurrent-cache = ["arc-disk-cache"]
 azure = ["chrono", "hyper", "hyperx", "reqwest", "url", "hmac", "md-5", "sha2"]
 s3 = ["chrono", "hyper", "hyperx", "reqwest", "simple-s3", "hmac", "sha-1"]
 simple-s3 = []

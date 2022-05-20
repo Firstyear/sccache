@@ -26,4 +26,7 @@ pub mod redis;
 #[cfg(feature = "s3")]
 pub mod s3;
 
+#[cfg(feature = "concurrent-cache")]
+pub mod conccache;
+
 pub use crate::cache::cache::*;

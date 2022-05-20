@@ -21,6 +21,8 @@ use crate::cache::memcached::MemcachedCache;
 use crate::cache::redis::RedisCache;
 #[cfg(feature = "s3")]
 use crate::cache::s3::S3Cache;
+#[cfg(feature = "concurrent-cache")]
+use crate::cache::conccache::ConcurrentDiskCache;
 use crate::config::{self, CacheType, Config};
 #[cfg(feature = "azure")]
 use crate::{azure, azure::AzureCredentialsProvider, cache::azure::AzureBlobCache};
@@ -414,6 +416,24 @@ pub fn storage_from_config(config: &Config, pool: &tokio::runtime::Handle) -> Ar
                         return Arc::new(s);
                     }
                     Err(e) => warn!("Failed to create S3Cache: {:?}", e),
+                }
+            }
+            CacheType::ConcurrentDisk(config::ConcurrentDiskCacheConfig {
+                ref dir, ref size, ref durable_fs
+            }) => {
+                debug!("Trying ConcurrentDiskCache({:?}, {}, {})", dir, size, durable_fs);
+                #[cfg(feature = "concurrent-cache")]
+                match ConcurrentDiskCache::new(
+                    dir,
+                    *size,
+                    *durable_fs,
+                    pool
+                ) {
+                    Ok(s) => {
+                        trace!("Using ConcurrentDiskCache");
+                        return Arc::new(s);
+                    }
+                    Err(e) => warn!("Failed to create ConcurrentDiskCache: {:?}", e),
                 }
             }
         }
