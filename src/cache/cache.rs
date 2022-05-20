@@ -442,5 +442,9 @@ pub fn storage_from_config(config: &Config, pool: &tokio::runtime::Handle) -> Ar
     info!("No configured caches successful, falling back to default");
     let (dir, size) = (&config.fallback_cache.dir, config.fallback_cache.size);
     trace!("Using DiskCache({:?}, {})", dir, size);
-    Arc::new(DiskCache::new(&dir, size, pool))
+    #[cfg(feature = "concurrent-cache")]
+    let cache = Arc::new(ConcurrentDiskCache::new(&dir, size, false, pool).expect("Failed to setup cache!"));
+    #[cfg(not(feature = "concurrent-cache"))]
+    let cache = Arc::new(DiskCache::new(&dir, size, pool));
+    cache
 }
