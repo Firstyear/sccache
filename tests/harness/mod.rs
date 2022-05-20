@@ -142,6 +142,7 @@ pub fn sccache_client_cfg(tmpdir: &Path) -> sccache::config::FileConfig {
             redis: None,
             s3: None,
             webdav: None,
+            concdisk: None,
         },
         dist: sccache::config::DistConfig {
             auth: Default::default(), // dangerously_insecure

@@ -81,6 +81,10 @@ which = { version = "4", default-features = false }
 zip = { version = "0.6", default-features = false }
 zstd = "0.12"
 
+# concurrent cache
+# arc-disk-cache = { version = "0.1", optional = true }
+arc-disk-cache = { git = "https://github.com/Firstyear/opensuse-proxy-cache.git", optional = true }
+
 # dist-server only
 nix = { version = "0.26.2", optional = true }
 rouille = { version = "3.5", optional = true, default-features = false, features = ["ssl"] }
@@ -126,6 +130,7 @@ gcs = ["opendal","reqsign", "url", "reqwest/blocking"]
 gha = ["opendal"]
 webdav = ["opendal"]
 memcached = ["opendal/services-memcached"]
+concurrent-cache = ["arc-disk-cache"]
 native-zlib = []
 redis = ["url", "opendal/services-redis"]
 # Enable features that will build a vendored version of openssl and
