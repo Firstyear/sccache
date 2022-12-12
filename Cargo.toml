@@ -125,7 +125,7 @@ features = [
 [features]
 default = ["all"]
 all = ["dist-client", "redis", "s3", "memcached", "gcs", "azure", "gha", "concurrent-cache"]
-azure = ["opendal"]
+azure = ["opendal", "chrono"]
 s3 = ["opendal"]
 concurrent-cache = ["arc-disk-cache"]
 gcs = ["chrono", "hyper", "hyperx", "percent-encoding", "reqwest", "ring", "url"]
