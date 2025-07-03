@@ -81,7 +81,7 @@ zstd = "0.12"
 
 # concurrent cache
 # arc-disk-cache = { version = "0.1", optional = true }
-arc-disk-cache = { git = "https://github.com/Firstyear/opensuse-proxy-cache.git", optional = true }
+arc-disk-cache = { git = "https://github.com/Firstyear/opensuse-proxy-cache.git", rev = "e879fa59d31667857d37c3832853038e7c4b2873", optional = true }
 
 # dist-server only
 nix = { version = "0.26.2", optional = true }
